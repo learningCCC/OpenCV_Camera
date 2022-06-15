@@ -95,6 +95,8 @@ class TkCamera(tkinter.Frame):
         self.image_on_canvas=None
         self.running = True
 
+        # hold the after method id
+        self.handler = None
         
         self.update_frame() 
         
@@ -102,8 +104,14 @@ class TkCamera(tkinter.Frame):
         
     # update frames
     def update_frame(self):
+        # close pending after callback process, otherwise spider will invoke "invalide command error
+        # https://stackoverflow.com/questions/9776718/how-do-i-stop-tkinter-after-function
+        if self.handler:
+            self.window.after_cancel(self.handler)
+            
+            
         ret, frame = self.vid.get_frame()
-        
+
         if ret:
             self.image = frame
 
@@ -114,12 +122,16 @@ class TkCamera(tkinter.Frame):
             self.canvas.create_image(0, 0, image=self.image_on_canvas, anchor='nw')
         
         if self.running:
-            self.window.after(self.delay, self.update_frame)
+            self.handler = self.window.after(self.delay, self.update_frame)
         else:
             self.vid.running = False
+            if self.handler:
+                self.window.after_cancel(self.handler)
     
     def release_cam(self):
         self.vid.vid.release()
+        if self.handler:
+            self.window.after_cancel(self.handler)
     
     def resize_image(self, event):
         self.win_width = event.width
