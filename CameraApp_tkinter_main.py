@@ -39,7 +39,8 @@ class TkCamera(tkinter.Frame):
         #print (window.winfo_width(),window.winfo_height())
         
         # small size 
-        self.canvas = tkinter.Canvas(self, width=self.win_width, height=self.win_height)
+        #self.canvas = tkinter.Canvas(self, width=self.win_width, height=self.win_height)
+        self.canvas = tkinter.Canvas(self, width=width, height=height)
         self.canvas = tkinter.Canvas(self) #width=640, height=480
         self.canvas.pack(fill='both', expand=True)
         # make it resizable with the big window
@@ -49,10 +50,10 @@ class TkCamera(tkinter.Frame):
         self.canvas.bind('<MouseWheel>', self._mouse_focus)
         self.count = self.vid.focus_value #35
         
-#         # mouse click for zoom
-#         self.canvas.bind('<Double-Button-1>', self._click_zoom_in)
-#         self.canvas.bind('<Button-3>', self._click_zoom_out)
-#         self.click_zoom_scale = 1
+        # mouse click for zoom
+        self.canvas.bind('<Double-Button-1>', self._click_zoom_in)
+        self.canvas.bind('<Button-3>', self._click_zoom_out)
+        self.click_zoom_scale = 1
    
    
         # buttons
@@ -74,21 +75,31 @@ class TkCamera(tkinter.Frame):
         self.label_zoom = tkinter.Label(self,text='Zoom')
         self.label_zoom.pack(side='right',)
         
-        self.slider_pan = tkinter.Scale(self, from_=-15, to=15,
+        self.slider_pan_h = tkinter.Scale(self, from_=-15, to=15,resolution = 0.5,
                                          orient=HORIZONTAL,command=self.pan_h_slider) #label='Pan',#noqa
-        self.slider_pan.pack(side='right',anchor='center')
-        self.slider_pan.set(0)
-        self.label_pan = tkinter.Label(self,text='Pan')
-        self.label_pan.pack(side='right')
+        self.slider_pan_h.pack(side='right',anchor='center')
+        self.slider_pan_h.set(0)
+        self.label_pan_h = tkinter.Label(self,text='Pan_h')
+        self.label_pan_h.pack(side='right')
         
-        self.slider_exposure = tkinter.Scale(self, from_=-10, to=10,
+        self.slider_tilt = tkinter.Scale(self, from_=-15, to=15,resolution = 0.5,
+                                          orient=HORIZONTAL,command=self.tilt_slider) #label='tilt',#noqa
+        self.slider_tilt.pack(side='right',anchor='center')
+        self.slider_tilt.set(0)
+        self.label_tilt = tkinter.Label(self,text='tilt')
+        self.label_tilt.pack(side='right')
+        
+        
+        self.slider_exposure = tkinter.Scale(self, from_=-10.0, to=10.0,resolution = 0.5,
                                          orient=HORIZONTAL,command=self.exposure_slider) #label='Pan',#noqa
         self.slider_exposure.pack(side='right',anchor='center')
         self.slider_exposure.set(0)
         self.label_exposure = tkinter.Label(self,text='Exposure')
         self.label_exposure.pack(side='right')
 
-        
+        # self.auto_exposure_button = tkinter.Button(self, text='Auto Exposure On')
+        # self.auto_exposure_button.pack(side='right',anchor='center')
+        # self.auto_exposure_button.bind('<Button-1>', self.toggleAutoExposure)
   
         self.delay = int(1000/self.vid.fps)
         self.image = None
@@ -115,7 +126,7 @@ class TkCamera(tkinter.Frame):
         if ret:
             self.image = frame
 
-            self.image = self.image.resize((self.win_width, self.win_height))
+            self.image = self.image.resize((self.win_width, self.win_height), resample=PIL.Image.LANCZOS)
                                
             self.image_on_canvas= PIL.ImageTk.PhotoImage(image=self.image)
             
@@ -166,8 +177,13 @@ class TkCamera(tkinter.Frame):
 
     # pan buttons
     def pan_h_slider(self, event):
-        panX = int(self.slider_pan.get())
+        panX = int(self.slider_pan_h.get())
         self.vid.panX(panX)
+    
+    def tilt_slider(self, event):
+        tiltY = int(self.slider_tilt.get())
+        #print(tiltY)
+        self.vid.tiltY(tiltY)
     
     def exposure_slider(self,event):
         exposure_val = self.slider_exposure.get()
@@ -184,78 +200,90 @@ class TkCamera(tkinter.Frame):
             self.count += 5
             self.vid.focusing(self.count)
             
-#     def _click_zoom_in(self, event):
+    def _click_zoom_in(self, event):
         
-#         if self.click_zoom_scale >=0.2:
-#               self.click_zoom_scale -=0.1 
+        if self.click_zoom_scale >=0.2:
+              self.click_zoom_scale -=0.1 
         
-#               cX, cY=  event.x, event.y
-#               self.vid.click_zoom_in(cX, cY, self.click_zoom_scale)
+              cX, cY=  event.x, event.y
+              #print(event.x, event.y)
+              self.vid.click_zoom_in(cX, cY, self.click_zoom_scale)
         
-#     def _click_zoom_out(self, event):
+    def _click_zoom_out(self, event):
         
-#         if self.click_zoom_scale <= 1:
-#             self.click_zoom_scale +=0.1
-#             self.vid.click_zoom_out(self.click_zoom_scale)
-                 
+        if self.click_zoom_scale <= 1:
+            self.click_zoom_scale +=0.1
+            self.vid.click_zoom_out(self.click_zoom_scale)
+            
+    # def toggleAutoExposure(self, event):
+    #     if  self.auto_exposure_button["text"] == "Auto Exposure On":
+    #         #move(25, 0.02)  # 50*0.02 = 1
+    #         self.auto_exposure_button["text"] = "Auto Exposure Off"
+           
+    #         self.vid.set_autoExposureON()
+    #     elif  self.auto_exposure_button["text"] == "Auto Exposure Off":
+    #         #move(25, -0.02)
+    #         self.auto_exposure_button["text"] = "Auto Exposure On"
+           
+    #         self.vid.set_autoExposureOff()
             
  ##################################################################################################################           
             
-class CameraApp:
-    def __init__(self, window, window_title, video_sources):
+# class CameraApp:
+#     def __init__(self, window, window_title, video_sources):
         
-        self.window = window
+#         self.window = window
 
-        self.window.title(window_title)
+#         self.window.title(window_title)
         
-        self.window.resizable(True,True) # TODO, make it user resizable
-        self.window.aspect(1,1,1,1) # this is not working!!! very annoying
+#         self.window.resizable(True,True) # TODO, make it user resizable
+#         self.window.aspect(1,1,1,1) # this is not working!!! very annoying
         
-        #self.window.minsize(1920,600)
-        self.x_pixel = 1920
-        self.y_pixel = 1080
-        self.fps  = 30
+#         #self.window.minsize(1920,600)
+#         self.x_pixel = 1920
+#         self.y_pixel = 1080
+#         self.fps  = 30
 
-        #self.window.bind('<Configure>',self._resize_window)
-        #self.window.update_idletasks()
-        geometry = (f'{self.x_pixel}x{int(self.y_pixel/2)}')
-        self.window.geometry(geometry)
+#         #self.window.bind('<Configure>',self._resize_window)
+#         #self.window.update_idletasks()
+#         geometry = (f'{self.x_pixel}x{int(self.y_pixel/2)}')
+#         self.window.geometry(geometry)
         
-        self.vids = []
-        columns = 2
+#         self.vids = []
+#         columns = 2
         
-        for num, src in enumerate(video_sources):
-            text, camID = src
-            # this should be general # (4096, 2160,30), (1920, 1080,60) for logitech
-            # for built in camera like hp wide vision hd camera  it is 1280 x 720
-            self.vid = TkCamera(self.window, text, camID, self.x_pixel, self.y_pixel, self.fps) 
+#         for num, src in enumerate(video_sources):
+#             text, camID = src
+#             # this should be general # (4096, 2160,30), (1920, 1080,60) for logitech
+#             # for built in camera like hp wide vision hd camera  it is 1280 x 720
+#             self.vid = TkCamera(self.window, text, camID, self.x_pixel, self.y_pixel, self.fps) 
             
-            row = num // columns
-            column = num % columns
-            # make the video change size with the main window
-            self.vid.grid(row=row, column=column, sticky=N+S+W+E) #noqa
-            Grid.rowconfigure(self.window, row, weight=1) #noqa
-            Grid.columnconfigure(self.window, column, weight=1) #noqa
+#             row = num // columns
+#             column = num % columns
+#             # make the video change size with the main window
+#             self.vid.grid(row=row, column=column, sticky=N+S+W+E) #noqa
+#             Grid.rowconfigure(self.window, row, weight=1) #noqa
+#             Grid.columnconfigure(self.window, column, weight=1) #noqa
             
-            self.vids.append(self.vid)
+#             self.vids.append(self.vid)
      
-        self.window.protocol('WM_DELETE_WINDOW', self.on_closing)
-        self.window.mainloop()
+#         self.window.protocol('WM_DELETE_WINDOW', self.on_closing)
+#         self.window.mainloop()
 
         
-    # def _resize_window(self, event):
+#     # def _resize_window(self, event):
 
-    #     self.event_width = event.width 
-    #     self.win_width = event.width
-    #     self.win_height = int(self.event_width*6/9)
+#     #     self.event_width = event.width 
+#     #     self.win_width = event.width
+#     #     self.win_height = int(self.event_width*6/9)
 
         
         
-    def on_closing(self, event=None):
-            for src in self.vids:
-                src.vid.running = False
-                src.release_cam()
-            self.window.destroy()
+#     def on_closing(self, event=None):
+#             for src in self.vids:
+#                 src.vid.running = False
+#                 src.release_cam()
+#             self.window.destroy()
                 
             
 
@@ -264,14 +292,9 @@ if __name__ == '__main__':
  
     
     cams = CamIndex() #noqa
-    # print(cams.get_cams_info())
+    print(cams.get_cams_info())
     sources = cams.get_cams_info()
-    if sources!= None:    
-        CameraApp(tkinter.Tk(), 'Jupiter Side Cameras', sources)
-        
-#     sources=[
-#         ('Me', 0),
-#         ('Jupiter', 2)
-#             ]
+
     
-#     CameraApp(tkinter.Tk(), 'Jupiter Side Cameras', sources)
+    # if sources!= None:    
+    #     CameraApp(tkinter.Tk(), 'Jupiter Side Cameras', sources)
