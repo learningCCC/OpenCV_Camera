@@ -3,6 +3,8 @@
 Created on Thu Jun  9 16:03:44 2022
 
 @author: zhangh
+
+https://stackoverflow.com/questions/71381525/python-zooming-and-capturing-a-specific-part-of-a-webcam-live-video-using-opencv
 """
 
 import cv2
@@ -36,9 +38,9 @@ class MyVideoCapture:
         self.vid.set(cv2.CAP_PROP_FPS,fps)
         # since different camera has differet aspec so we should not set a gerenal width and height
         # then how to get the best resolution
-#         self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-#         self.vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+        self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0) # on is 3, off is 1?
         
         #print('exp:',self.vid.get(cv2.CAP_PROP_EXPOSURE) )
         
@@ -68,13 +70,14 @@ class MyVideoCapture:
         self.click_zoom_scale = 1
         self.center_x = int(self.width/2)
         self.center_y = int(self.height/2)
+        self.cropped = []
         
         self.panX_bool = False
         self.panX_num = 0
         # colors
         
-        self.panY_bool = False
-        self.panY_num = 0
+        self.tiltY_bool = False
+        self.tiltY_num = 0
 
         # threading
         #self.lock = threading.Lock()
@@ -97,6 +100,7 @@ class MyVideoCapture:
             if ret:
                 # process the frames
                 #frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
+                frame_copy = frame.copy()
                 
                 # rocord before coverting channels
                 if self.recording:
@@ -104,17 +108,24 @@ class MyVideoCapture:
 
                 if self.panX_bool:
                     self.panX(self.panX_num)
-                
-                if self.panY_bool:
-                    frame = self.panY(frame, self.panY_num)
                     
+                if self.tiltY_bool:
+                    self.tiltY(self.tiltY_num)
+
                                                     
                 if self.zoom_bool:
                     self.zoom(self.scale)   
                 
-#                 if self.click_zoom_bool:
-#                     frame = self.click_zoom(frame,(self.center_x, self.center_y))
-#                 # mouse callback
+                if self.click_zoom_bool:
+                    frame = self.click_zoom(frame,(self.center_x, self.center_y))
+                    
+                    #TODO: panX and panY after click zoom
+                    # pass frame_copy, self.center_x, self.center_y, frame_width, frame_height to the pan functions
+                    # if self.panY_bool:
+                    #     frame_height,frame_width = self.cropped.shape[0:2]
+                    #     frame = self._panY(0, self.panY_num, frame_copy,  int(frame_width), int(frame_height), self.center_x, self.center_y)
+                
+                # # mouse callback
                
                 
                 # from opencv to tkiner frame formate
@@ -187,56 +198,77 @@ class MyVideoCapture:
   
     def click_zoom(self, img, center=None):
          
-        height,width =self.height,self.width # height = rows, width = cols
+        height,width = img.shape[:2] # height = rows, width = cols
         
         if center is None: # zoom center is the center of original image
-            center_x, half_width = int(width/2), int(self.click_zoom_scale*width/2) # new half width
-            center_y, half_height =  int(height/2),int(self.click_zoom_scale*height/2) # new half height
+            center_x = int(width/2) # new half width
+            center_y =  int(height/2) # new half height
+            radius_x, radius_y = int(width/2), int(height/2)
             
         else: # center of the new image is  not the orignal image
+        
+            
             center_x, center_y = center
-            half_width = min(center_x, width - center_x) # could be right or left of the original center
-            half_height = min(center_y, height - center_y)
             
-            half_width = int(self.click_zoom_scale*half_width)
-            half_height = int(self.click_zoom_scale*half_height)
+            # clamp the min and max of center_x center_y
+            rate = height/width
+            if center_x < width*(1-rate):
+                center_x = width*(1-rate)
+            elif center_x > width * rate:
+                center_x = width * rate
             
-            if half_width/half_height > self.width/self.height:
-                half_width = int(half_height*self.width/self.height)
-            elif half_width/half_height > self.width/self.height:
-                half_height = int(half_width*self.height/self.width)
-            
-        min_x, max_x = center_x - half_width, center_x + half_width
-        min_y, max_y = center_y - half_height, center_y + half_height
+            #rate = width/height
+            if center_y < height*(1-rate):
+                center_y = height*(1-rate)
+            elif center_y > height*rate:
+                center_y = height*rate
         
-        cropped = img[min_y:max_y, min_x:max_x] # y is rows, x is cols
+            center_x, center_y = int(center_x), int(center_y)
+            # change the self.center_x, self.center_y to new center_x, center_y
+            self.center_x, self.center_y = center_x, center_y
+            
+            # clamp x, y boundary
+            left_x, right_x = center_x, int(width - center_x)
+            up_y, down_y = int(height - center_y), center_y
+            radius_x = min(left_x, right_x)
+            radius_y = min(up_y, down_y)
         
-        new_img = cv2.resize(cropped, (self.width,self.height), interpolation=cv2.INTER_CUBIC)
+        # new radius after zoom
+        radius_x, radius_y = int(self.click_zoom_scale* radius_x), int(self.click_zoom_scale* radius_y)
+            
+            
+        min_x, max_x = center_x - radius_x, center_x + radius_x
+        min_y, max_y = center_y - radius_y, center_y + radius_y
+        
+        self.cropped = img[min_y:max_y, min_x:max_x] # y is rows, x is cols
+        
+        
+        new_img = cv2.resize(self.cropped, (self.width,self.height), interpolation=cv2.INTER_LINEAR)
         
         return new_img
     
-#     # self.click_zoom_bool
-#     def click_zoom_out(self, scale):
-#         # right mouse button single click
-#         if self.click_zoom_scale < 1:
-#             self.click_zoom_bool = True
-#             #self.click_zoom_scale += 0.1
-#             self.click_zoom_scale = scale
-#         if self.click_zoom_scale == 1:
-#             self.center_x = self.width/2
-#             self.center_y = self.height/2
-#             self.click_zoom_bool = False
+    # self.click_zoom_bool
+    def click_zoom_out(self, scale):
+        # right mouse button single click
+        if self.click_zoom_scale < 1:
+            self.click_zoom_bool = True
+            #self.click_zoom_scale += 0.1
+            self.click_zoom_scale = scale
+        if self.click_zoom_scale == 1:
+            self.center_x = self.width/2
+            self.center_y = self.height/2
+            self.click_zoom_bool = False
 
-#     def click_zoom_in(self, cX, cY, scale):
-#         # left button double click
-#         if self.click_zoom_scale > 0.2:
-#             self.click_zoom_bool = True
-#             self.center_x = cX
-#             self.center_y = cY
-#             #self.click_zoom_scale -=0.1
-#             self.click_zoom_scale = scale
-#         else:
-#             self.click_zoom_bool = False
+    def click_zoom_in(self, cX, cY, scale):
+        # left button double click
+        if self.click_zoom_scale > 0.2:
+            self.click_zoom_bool = True
+            self.center_x = cX
+            self.center_y = cY
+            #self.click_zoom_scale -=0.1
+            self.click_zoom_scale = scale
+        else:
+            self.click_zoom_bool = False
     
     
     def panX(self,deltaX):
@@ -246,19 +278,45 @@ class MyVideoCapture:
         #translated_frame = imutils.translate(img, deltaX, 0)
         #return translated_frame
         
-#     def panY(self,img,deltaY):
-#         self.panY_num = deltaY
-#         self.panY_bool = True
-#         translated_frame = imutils.translate(img, 0, deltaY)
-#         return translated_frame
+    def tiltY(self,deltaY):
+        self.tiltY_num = deltaY
+        self.vid.set(cv2.CAP_PROP_TILT,deltaY)
+        self.tiltY_bool = True
     
+    #frame = self._panY(self.panY_num, frame_copy,  frame_width, frame_height, self.center_x, self.center_y)
+    def _panY(self,delta_x,delta_y,img, w, h, center_x, center_y):
+        
+        # new frame boundary
+        print(center_x, center_y, delta_x,delta_y, w,h)
+ 
+        print(img.shape[0:2])
+        left_x, right_x = int(center_x + delta_x- 2/w), int(center_x + delta_x + 2/w)
+        up_y, down_y = int(center_y + delta_y + 2/h), int(center_y + delta_y - 2/h)
+        
+        new_frame = img[down_y:up_y, left_x:right_x]
+        
+        
+        return new_frame
+        
     def set_exposure(self, val):
          self.vid.set(cv2.CAP_PROP_EXPOSURE, val)
-      
+         self.vid.set(cv2.CAP_PROP_GAIN, val*10) # increase the gain as increase exposure
+         #self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, val)
+         #print(val, self.vid.get(cv2.CAP_PROP_AUTO_EXPOSURE))
+     
+        # autoexpsure does not work
+    # def set_autoExposureON(self):
+    #     print("Auto Exposure On")
+    #     self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+    
+    # def set_autoExposureOff(self):
+    #     print("Auto Exposure Off")
+    #     self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, -1)
+        
     def focusing(self, focus_value):
         if focus_value >=0 and focus_value<=255:
             self.vid.set(cv2.CAP_PROP_FOCUS,focus_value)
-            
+        
 if __name__ == '__main__':
 
     # show one captured frame for each camera
